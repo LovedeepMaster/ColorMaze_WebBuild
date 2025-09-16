@@ -7,10 +7,59 @@
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
     <link rel="manifest" href="manifest.webmanifest">
+
+    <!-- ===== Custom layout & styling for fixed logical resolution 1080x1920 ===== -->
+    <style>
+      /* Page background (visible on left & right when canvas is narrower than the viewport) */
+      html, body {
+        height: 100%;
+        margin: 0;
+        background: #888888; /* gray background for left/right empty space */
+      }
+
+      /* Center the Unity container both vertically and horizontally */
+      #unity-container {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        padding: 0; /* optional: adjust if you want extra spacing */
+      }
+
+      /* Canvas: keep Unity's internal render target at 1080x1920 (logical),
+         but let CSS scale it down/up to fit the current browser viewport while
+         maintaining aspect ratio. */
+      #unity-canvas {
+        /* logical resolution used by Unity engine */
+        width: auto;                /* CSS width will be computed from max constraints */
+        height: auto;               /* CSS height will be computed from max constraints */
+        max-width: 100vw;           /* never overflow horizontally */
+        max-height: 100vh;          /* never overflow vertically */
+        display: block;
+        background-color: #000000;  /* default canvas background (game area) */
+        box-shadow: 0 0 0 0 rgba(0,0,0,0); /* keep no extra outline - change if needed */
+      }
+
+      /* Loading bar and warnings keep their default positioning from TemplateData/style.css.
+         If they overlap after these changes you can tweak their CSS in the same file. */
+      @media (orientation: landscape) {
+        /* On landscape screens the portrait canvas will be letterboxed (left/right gray).
+           If you prefer the canvas to fill height fully in landscape, the current
+           constraints already make it fit vertically (max-height:100vh). */
+      }
+    </style>
   </head>
   <body>
     <div id="unity-container">
-      <canvas id="unity-canvas" width=960 height=600 tabindex="-1"></canvas>
+      <!--
+        Important:
+        - The canvas 'width' and 'height' attributes define the internal Unity/WebGL render target size.
+        - We're setting them to 1080 x 1920 (portrait).
+        - The CSS rules above will scale that render target up/down to fit the browser while preserving aspect ratio.
+      -->
+      <canvas id="unity-canvas" width="1080" height="1920" tabindex="-1"></canvas>
+
       <div id="unity-loading-bar">
         <div id="unity-logo"></div>
         <div id="unity-progress-bar-empty">
@@ -19,6 +68,7 @@
       </div>
       <div id="unity-warning"> </div>
     </div>
+
     <script>
       window.addEventListener("load", function () {
         if ("serviceWorker" in navigator) {
@@ -32,12 +82,6 @@
       var progressBarFull = document.querySelector("#unity-progress-bar-full");
       var warningBanner = document.querySelector("#unity-warning");
 
-      // Shows a temporary message banner/ribbon for a few seconds, or
-      // a permanent error message on top of the canvas if type=='error'.
-      // If type=='warning', a yellow highlight color is used.
-      // Modify or remove this function to customize the visually presented
-      // way that non-critical warnings and error messages are presented to the
-      // user.
       function unityShowBanner(msg, type) {
         function updateBannerVisibility() {
           warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
@@ -68,17 +112,14 @@
         productName: "ColorMaze",
         productVersion: "0.1.0",
         showBanner: unityShowBanner,
+
+        // keep Unity's default behaviour: match the WebGL render target to the CSS canvas size.
+        // If you set config.matchWebGLToCanvasSize = false, you'd need to resize the engine render target manually.
+        // config.matchWebGLToCanvasSize = true
       };
 
-      // By default Unity keeps WebGL canvas render target size matched with
-      // the DOM size of the canvas element (scaled by window.devicePixelRatio)
-      // Set this to false if you want to decouple this synchronization from
-      // happening inside the engine, and you would instead like to size up
-      // the canvas DOM size and WebGL render target sizes yourself.
-      // config.matchWebGLToCanvasSize = false;
-
+      // Mobile: keep meta so viewport behaves correctly
       if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-        // Mobile device style: fill the whole browser client area with the game canvas:
         var meta = document.createElement('meta');
         meta.name = 'viewport';
         meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
@@ -94,6 +135,12 @@
           progressBarFull.style.width = 100 * progress + "%";
         }).then((unityInstance) => {
           loadingBar.style.display = "none";
+
+          // Optional helpful behavior:
+          // When the browser resizes, we leave the canvas CSS constrained by max-width/max-height,
+          // so the browser will show gray on the sides if aspect doesn't match.
+          // If you want the game to always be centered and scaled, that is already handled by CSS above.
+
         }).catch((message) => {
           alert(message);
         });
