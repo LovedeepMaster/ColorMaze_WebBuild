@@ -1,90 +1,362 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Unity WebGL Build</title>
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      background: #444; /* gray background for PC */
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-    }
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Unity Web Player | ColorMaze</title>
+    <link rel="shortcut icon" href="TemplateData/favicon.ico">
+    <link rel="stylesheet" href="TemplateData/style.css">
+    <link rel="manifest" href="manifest.webmanifest">
 
-    #unity-container {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-
-    /* Unity canvas */
-    #unity-canvas {
-      background: black;
-      width: 100%;
-      height: 100%;
-    }
-
-    /* Rotate warning for landscape mode on mobile */
-    #rotate-warning {
-      display: none;
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: #222;
-      color: white;
-      font-size: 24px;
-      font-family: sans-serif;
-      justify-content: center;
-      align-items: center;
-      z-index: 9999;
-    }
-  </style>
-</head>
-<body>
-  <div id="unity-container">
-    <canvas id="unity-canvas"></canvas>
-  </div>
-
-  <div id="rotate-warning">
-    Please rotate your device back to portrait.
-  </div>
-
-  <script>
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const unityCanvas = document.getElementById("unity-canvas");
-    const container = document.getElementById("unity-container");
-    const warning = document.getElementById("rotate-warning");
-
-    function resizeGame() {
-      if (isMobile) {
-        // Mobile → always full screen in portrait
-        if (window.innerHeight >= window.innerWidth) {
-          warning.style.display = "none";
-          container.style.width = "100%";
-          container.style.height = "100%";
-        } else {
-          // Landscape → show warning
-          warning.style.display = "flex";
-          container.style.width = "0";
-          container.style.height = "0";
-        }
-      } else {
-        // PC → fixed 1080x1920 with gray borders
-        container.style.width = "1080px";
-        container.style.height = "1920px";
+    <style>
+      /* --- basic layout resets --- */
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+        background: black; /* default black so letterbox area is black */
+        -webkit-font-smoothing:antialiased;
+        -moz-osx-font-smoothing:grayscale;
       }
-    }
 
-    window.addEventListener("resize", resizeGame);
-    window.addEventListener("orientationchange", resizeGame);
+      #unity-container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: black;
+      }
 
-    // Run once on load
-    resizeGame();
-  </script>
-</body>
+      /* Unity canvas default - we'll adjust in JS depending on device */
+      #unity-canvas {
+        display: block;
+        background: #000; /* fallback background */
+        max-width: 100%;
+        max-height: 100%;
+        box-shadow: 0 6px 30px rgba(0,0,0,0.6);
+        border-radius: 6px;
+      }
+
+      /* Loading / warning areas from original file (kept) */
+      #unity-loading-bar {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 60%;
+        max-width: 600px;
+        display: none; /* toggled from script */
+        z-index: 50;
+      }
+      #unity-loading-bar #unity-progress-bar-empty {
+        width: 100%;
+        height: 6px;
+        background: rgba(255,255,255,0.12);
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      #unity-progress-bar-full {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #47a7ff, #7c4dff);
+      }
+
+      #unity-warning {
+        position: absolute;
+        left: 12px;
+        right: 12px;
+        top: 12px;
+        z-index: 60;
+        pointer-events: none;
+      }
+
+      /* Stylish portrait-only overlay shown when rotated to landscape on mobile */
+      #rotate-overlay {
+        position: fixed;
+        inset: 0;
+        display: none; /* show/hide via JS */
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        pointer-events: auto;
+      }
+      #rotate-overlay .backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(0,0,0,0.6);
+        backdrop-filter: blur(6px);
+      }
+      #rotate-overlay .message {
+        position: relative;
+        color: #fff;
+        text-align: center;
+        padding: 28px 24px;
+        max-width: 420px;
+        border-radius: 16px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+        background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+        border: 1px solid rgba(255,255,255,0.06);
+        transform: translateY(-6px);
+      }
+      #rotate-overlay .icon {
+        font-size: 46px;
+        margin-bottom: 10px;
+        display: block;
+        filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6));
+      }
+      #rotate-overlay .title {
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+        font-weight: 700;
+        font-size: 20px;
+        margin-bottom: 6px;
+      }
+      #rotate-overlay .subtitle {
+        font-size: 14px;
+        opacity: 0.9;
+        line-height: 1.3;
+      }
+
+      /* small-screen tweaks for overlay */
+      @media (max-width: 420px) {
+        #rotate-overlay .message { padding: 20px; max-width: 320px; border-radius: 12px; }
+        #rotate-overlay .icon { font-size: 40px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="unity-container">
+      <canvas id="unity-canvas" width="960" height="600" tabindex="-1"></canvas>
+
+      <div id="unity-loading-bar">
+        <div id="unity-logo"></div>
+        <div id="unity-progress-bar-empty">
+          <div id="unity-progress-bar-full"></div>
+        </div>
+      </div>
+
+      <div id="unity-warning"> </div>
+    </div>
+
+    <!-- Portrait-only overlay (shown on mobile when rotated to landscape) -->
+    <div id="rotate-overlay" aria-hidden="true">
+      <div class="backdrop"></div>
+      <div class="message" role="alert" aria-live="assertive">
+        <div class="icon">📱🔒</div>
+        <div class="title">Please rotate your device</div>
+        <div class="subtitle">This game is best played in <strong>portrait</strong>. Rotate your phone back to continue.</div>
+      </div>
+    </div>
+
+    <script>
+      window.addEventListener("load", function () {
+        if ("serviceWorker" in navigator) {
+          navigator.serviceWorker.register("ServiceWorker.js");
+        }
+      });
+
+      var container = document.querySelector("#unity-container");
+      var canvas = document.querySelector("#unity-canvas");
+      var loadingBar = document.querySelector("#unity-loading-bar");
+      var progressBarFull = document.querySelector("#unity-progress-bar-full");
+      var warningBanner = document.querySelector("#unity-warning");
+      var rotateOverlay = document.getElementById("rotate-overlay");
+
+      function unityShowBanner(msg, type) {
+        function updateBannerVisibility() {
+          warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
+        }
+        var div = document.createElement('div');
+        div.innerHTML = msg;
+        warningBanner.appendChild(div);
+        if (type == 'error') div.style = 'background: red; padding: 10px;';
+        else {
+          if (type == 'warning') div.style = 'background: yellow; padding: 10px;';
+          setTimeout(function() {
+            if(div.parentElement) warningBanner.removeChild(div);
+            updateBannerVisibility();
+          }, 5000);
+        }
+        updateBannerVisibility();
+      }
+
+      var buildUrl = "Build";
+      var loaderUrl = buildUrl + "/New folder.loader.js";
+      var config = {
+        arguments: [],
+        dataUrl: buildUrl + "/New folder.data.unityweb",
+        frameworkUrl: buildUrl + "/New folder.framework.js.unityweb",
+        codeUrl: buildUrl + "/New folder.wasm.unityweb",
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: "LovedeepSinghGame",
+        productName: "ColorMaze",
+        productVersion: "0.1.0",
+        showBanner: unityShowBanner,
+      };
+
+      loadingBar.style.display = "block";
+
+      /* ---------- Device detection + layout behavior ---------- */
+
+      // simple mobile test (matches original file's approach)
+      var isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      // but also check screen size to be safe
+      var isSmallScreen = window.matchMedia("(max-width: 900px)").matches;
+
+      var isMobile = isMobileUA || isSmallScreen;
+
+      // Apply viewport meta for mobile to ensure consistent sizing
+      if (isMobileUA) {
+        var meta = document.createElement('meta');
+        meta.name = 'viewport';
+        meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
+        document.getElementsByTagName('head')[0].appendChild(meta);
+      }
+
+      // Function to set PC behaviour: fixed gameplay area 1080x1920 centered,
+      // with black letterboxing filling empty space.
+      function applyPcLayout() {
+        // Set container background black (already set in CSS)
+        container.style.background = "black";
+
+        // Set canvas CSS size to 1080x1920 (portrait). Keep it centered and scale down if viewport smaller.
+        var targetW = 1080;
+        var targetH = 1920;
+        var vw = window.innerWidth;
+        var vh = window.innerHeight;
+
+        // compute scale so it fits inside viewport while maintaining aspect ratio
+        var scale = Math.min(vw / targetW, vh / targetH, 1);
+        var cssW = Math.round(targetW * scale);
+        var cssH = Math.round(targetH * scale);
+
+        canvas.style.width = cssW + "px";
+        canvas.style.height = cssH + "px";
+        canvas.style.maxWidth = "100%";
+        canvas.style.maxHeight = "100%";
+
+        // set actual canvas resolution for crispness (match devicePixelRatio)
+        var dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.round(targetW * (dpr * scale / scale)); // effectively targetW * dpr
+        canvas.height = Math.round(targetH * (dpr * scale / scale)); // effectively targetH * dpr
+
+        // Ensure the rest of the page remains black (letterbox)
+        document.body.style.background = "black";
+      }
+
+      // Function to set Mobile behaviour: canvas fills the viewport
+      function applyMobileLayout() {
+        // Remove letterboxing; game should cover whole browser area.
+        container.style.background = "black"; // in case of transient areas
+        // Full-viewport CSS
+        canvas.style.width = "100vw";
+        canvas.style.height = "100vh";
+        canvas.style.maxWidth = "100%";
+        canvas.style.maxHeight = "100%";
+        canvas.style.borderRadius = "0";
+
+        // set actual canvas pixel size for WebGL rendering
+        var dpr = window.devicePixelRatio || 1;
+        var w = Math.max(window.innerWidth, 1);
+        var h = Math.max(window.innerHeight, 1);
+        canvas.width = Math.round(w * dpr);
+        canvas.height = Math.round(h * dpr);
+
+        // body background shouldn't show; keep black fallback
+        document.body.style.background = "black";
+      }
+
+      // Function to decide and apply layout
+      function applyLayout() {
+        // If user agent says mobile and viewport is narrower than tall => treat as mobile
+        if (isMobile) {
+          applyMobileLayout();
+        } else {
+          applyPcLayout();
+        }
+      }
+
+      // Run initial layout
+      applyLayout();
+
+      /* ---------- Portrait orientation enforcement on mobile ---------- */
+
+      function isPortrait() {
+        // Use window dimensions for robust check
+        return window.innerHeight >= window.innerWidth;
+      }
+
+      function showRotateOverlay(show) {
+        if (!isMobile) {
+          // only show overlay on mobile devices
+          rotateOverlay.style.display = "none";
+          rotateOverlay.setAttribute("aria-hidden", "true");
+          return;
+        }
+
+        if (show) {
+          rotateOverlay.style.display = "flex";
+          rotateOverlay.setAttribute("aria-hidden", "false");
+
+          // optionally stop pointer events to the canvas while overlay active
+          canvas.style.pointerEvents = "none";
+        } else {
+          rotateOverlay.style.display = "none";
+          rotateOverlay.setAttribute("aria-hidden", "true");
+          canvas.style.pointerEvents = "auto";
+        }
+      }
+
+      // On resize / orientation change, reapply layout and show/hide overlay
+      function onResizeOrRotate() {
+        // re-evaluate isMobile based on viewport (handles desktop narrow windows)
+        isMobile = isMobileUA || window.matchMedia("(max-width: 900px)").matches;
+
+        // reapply layout (important for when user resizes window)
+        applyLayout();
+
+        // Show rotate overlay on mobile when in landscape (since game is portrait only)
+        if (isMobile && !isPortrait()) {
+          showRotateOverlay(true);
+        } else {
+          showRotateOverlay(false);
+        }
+      }
+
+      // Listen for orientationchange and resize
+      window.addEventListener("orientationchange", onResizeOrRotate);
+      window.addEventListener("resize", onResizeOrRotate);
+
+      // Also run once after a small timeout to ensure correct sizes after load
+      setTimeout(onResizeOrRotate, 250);
+
+      /* ---------- Load Unity instance (unchanged logic) ---------- */
+      var script = document.createElement("script");
+      script.src = loaderUrl;
+      script.onload = () => {
+        // If you want to decouple Unity's internal canvas sizing behavior, you can set:
+        // config.matchWebGLToCanvasSize = false;
+        // and control canvas.width / canvas.height yourself. We leave default for now.
+        createUnityInstance(canvas, config, (progress) => {
+          progressBarFull.style.width = 100 * progress + "%";
+        }).then((unityInstance) => {
+          loadingBar.style.display = "none";
+        }).catch((message) => {
+          alert(message);
+        });
+      };
+      document.body.appendChild(script);
+
+      /* Optional: expose a function Unity can call to force layout re-evaluation.
+         Example from Unity: Application.ExternalCall("JSCallName"); or use SendMessage.
+      */
+      window.__recalculateCanvasLayout = function() {
+        onResizeOrRotate();
+      };
+
+    </script>
+  </body>
 </html>
