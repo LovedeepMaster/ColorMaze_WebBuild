@@ -3,63 +3,71 @@
 <head>
   <meta charset="utf-8" />
   <title>Unity WebGL | ColorMaze</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
 
-  <!-- ====== IMPORTANT ======
-       Make sure these four file paths below match the files Unity produced in your Build folder.
-       Replace the filenames if Unity produced different names.
-       Example filenames Unity often produces: Build/Build.loader.js, Build/Build.data.unityweb, Build/Build.framework.js.unityweb, Build/Build.wasm.unityweb
-  ======================== -->
+  <!-- Force portrait orientation on mobile -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="screen-orientation" content="portrait" />
+  <meta name="x5-orientation" content="portrait" />
+  <meta name="x5-fullscreen" content="true" />
+  <meta name="full-screen" content="yes" />
+
   <script>
-    // CONFIG - update these strings if your build produces different filenames
+    // Adjust these to match your Unity build output
     const BUILD_FOLDER = "Build";
-    const LOADER_JS   = BUILD_FOLDER + "/New folder.loader.js";           // <--- adjust if different
-    const DATA_URL    = BUILD_FOLDER + "/New folder.data.unityweb";       // <--- adjust if different
-    const FRAMEWORK   = BUILD_FOLDER + "/New folder.framework.js.unityweb";// <--- adjust if different
-    const CODE_URL    = BUILD_FOLDER + "/New folder.wasm.unityweb";       // <--- adjust if different
+    const LOADER_JS   = BUILD_FOLDER + "/New folder.loader.js";
+    const DATA_URL    = BUILD_FOLDER + "/New folder.data.unityweb";
+    const FRAMEWORK   = BUILD_FOLDER + "/New folder.framework.js.unityweb";
+    const CODE_URL    = BUILD_FOLDER + "/New folder.wasm.unityweb";
+
+    // Device detection
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   </script>
 
   <style>
-    /* Page background color visible on left/right */
     html, body {
       height: 100%;
       margin: 0;
-      background: #888888; /* gray letterbox bars */
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
+      background: #000000;
     }
 
-    /* Unity container centers the canvas */
     #unity-container {
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-sizing: border-box;
-      overflow: hidden; /* clip any accidental overflow */
+      overflow: hidden;
     }
 
-    /* Canvas logical resolution is set by the width/height attributes.
-       CSS below only controls how it fits in the viewport (keeps aspect ratio). */
     #unity-canvas {
-      /* remove any border/outline/shadow and ensure crisp display */
       border: none !important;
       outline: none !important;
       box-shadow: none !important;
-      -webkit-box-shadow: none !important;
       display: block !important;
-      transform: translateZ(0); /* helps avoid subpixel hairline in some browsers */
-
-      /* Scaling behavior: keep aspect ratio and fit inside the viewport */
-      max-width: 100vw;
-      max-height: 100vh;
-      width: auto;
-      height: auto;
-      background-color: #000000; /* canvas background (game area) */
-      image-rendering: optimizeQuality;
+      transform: translateZ(0);
+      background-color: #000000;
     }
 
-    /* Loading bar & warning styles (small, unobtrusive) */
+    /* PC: fixed portrait with black bars */
+    .pc-style {
+      background: #000000;
+    }
+    .pc-style #unity-canvas {
+      width: auto;
+      height: auto;
+      max-width: 100vw;
+      max-height: 100vh;
+    }
+
+    /* Mobile: full screen, locked portrait */
+    .mobile-style {
+      background: #000000;
+    }
+    .mobile-style #unity-canvas {
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* Loading bar */
     #unity-loading-bar {
       position: absolute;
       top: 10px;
@@ -68,58 +76,55 @@
       width: 60%;
       max-width: 640px;
       height: 20px;
-      background: rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.1);
       border-radius: 4px;
       overflow: hidden;
-      display: none; /* shown while loading */
+      display: none;
       z-index: 10;
     }
-    #unity-loading-bar #unity-progress-bar-full {
+    #unity-progress-bar-full {
       height: 100%;
       width: 0%;
       background: linear-gradient(90deg,#6b44ff,#8c6cff);
     }
-    #unity-warning { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); z-index: 11; }
-
-    /* Prevent focus outline if canvas receives focus */
-    #unity-canvas:focus { outline: none; }
-
-    /* Optional: when viewport is very wide, keep canvas centered with gray bars */
-    @media (min-aspect-ratio: 9/16) {
-      /* portrait logical canvas in very wide displays -> letterbox left/right */
+    #unity-warning {
+      position: absolute;
+      top: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 11;
     }
   </style>
 </head>
 <body>
   <div id="unity-container">
-    <!-- Unity internal render target (logical resolution): width x height -->
-    <!-- We set portrait logical resolution 1080x1920 as requested -->
+    <!-- Unity internal render target (logical resolution) -->
     <canvas id="unity-canvas" width="1080" height="1920" tabindex="-1"></canvas>
 
-    <!-- small loading bar -->
     <div id="unity-loading-bar">
       <div id="unity-progress-bar-full"></div>
     </div>
-
-    <!-- warning area -->
     <div id="unity-warning"></div>
   </div>
 
   <script>
-    // Helper banner function used by Unity's loader
+    // Apply device-specific CSS class
+    if (isMobile) {
+      document.body.classList.add("mobile-style");
+    } else {
+      document.body.classList.add("pc-style");
+    }
+
+    // Unity banner messages
     function unityShowBanner(msg, type) {
       const container = document.getElementById("unity-warning");
       const div = document.createElement("div");
       div.textContent = msg;
-      if (type === "error") div.style = "background: #ff5c5c; color: #111; padding:6px; margin:4px; border-radius:4px;";
-      else if (type === "warning") div.style = "background: #ffd966; color: #111; padding:6px; margin:4px; border-radius:4px;";
-      else div.style = "background: rgba(0,0,0,0.35); color:#fff; padding:6px;margin:4px;border-radius:4px;";
+      div.style = "background:#ffd966; padding:6px; margin:4px; border-radius:4px;";
       container.appendChild(div);
-      // auto-remove non-errors
-      if (type !== "error") setTimeout(()=>{ try { container.removeChild(div); } catch(e){} }, 5000);
+      if (type !== "error") setTimeout(()=>{ container.removeChild(div); }, 5000);
     }
 
-    // Build configuration for createUnityInstance
     const config = {
       dataUrl: DATA_URL,
       frameworkUrl: FRAMEWORK,
@@ -128,41 +133,23 @@
       companyName: "LovedeepSinghGame",
       productName: "ColorMaze",
       productVersion: "0.1.0",
-      showBanner: unityShowBanner,
-      // By default Unity matches the WebGL render target to the CSS canvas size.
-      // We keep the default behaviour so Unity renders at a scaled size of the canvas attributes (1080x1920).
-      // If you want to change matching behaviour, you can add: matchWebGLToCanvasSize: true/false
+      showBanner: unityShowBanner
     };
 
-    // small helper to detect mobile and ensure proper viewport meta (already set in head)
-    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-      // no-op here, meta viewport already included
-    }
-
-    // show the loading bar
     const loadingBar = document.getElementById("unity-loading-bar");
     const progressBarFull = document.getElementById("unity-progress-bar-full");
     loadingBar.style.display = "block";
 
-    // load loader script
     const loaderScript = document.createElement("script");
     loaderScript.src = LOADER_JS;
     loaderScript.onload = () => {
-      // createUnityInstance is provided by the loader script
       createUnityInstance(document.getElementById("unity-canvas"), config, (progress) => {
-        // progress in range 0..1
         progressBarFull.style.width = (100 * progress) + "%";
-      }).then((unityInstance) => {
-        // hide loader after instantiate
+      }).then(() => {
         loadingBar.style.display = "none";
-        // remove any focus outline if created at runtime
-        document.getElementById("unity-canvas").blur();
       }).catch((message) => {
-        unityShowBanner("Failed to load the WebGL build: " + message, "error");
+        unityShowBanner("Error: " + message, "error");
       });
-    };
-    loaderScript.onerror = () => {
-      unityShowBanner("Could not load the Unity loader script. Check the LOADER_JS path in index.html", "error");
     };
     document.body.appendChild(loaderScript);
   </script>
