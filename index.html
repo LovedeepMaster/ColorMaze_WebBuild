@@ -9,17 +9,19 @@
     <link rel="manifest" href="manifest.webmanifest" />
 
     <style>
-      /* --- Reset / base --- */
+      /* ---------- Base ---------- */
       html, body {
-        margin: 0;
-        padding: 0;
         height: 100%;
         width: 100%;
-        background: black;
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
+        margin: 0;
+        padding: 0;
+        background: #000;
+        color: #fff;
+        -webkit-font-smoothing:antialiased;
+        -moz-osx-font-smoothing:grayscale;
       }
 
+      /* container centers canvas and creates letterbox */
       #unity-container {
         position: relative;
         width: 100%;
@@ -28,18 +30,20 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: black;
+        background: #000; /* ensures any empty area is black */
       }
 
+      /* Canvas: we keep it visually bare (no shadow/white edges) */
       #unity-canvas {
         display: block;
-        background: #000;
-        max-width: 100%;
-        max-height: 100%;
-        box-shadow: 0 6px 30px rgba(0,0,0,0.6);
-        border-radius: 6px;
+        background: black;   /* ensures no white flash behind transparent content */
+        width: auto;
+        height: auto;
+        box-shadow: none !important;
+        border-radius: 0 !important;
       }
 
+      /* Loading bar (hidden until needed) */
       #unity-loading-bar {
         position: absolute;
         left: 50%;
@@ -49,6 +53,7 @@
         max-width: 600px;
         display: none;
         z-index: 50;
+        pointer-events: none;
       }
       #unity-loading-bar #unity-progress-bar-empty {
         width: 100%;
@@ -63,6 +68,7 @@
         background: linear-gradient(90deg, #47a7ff, #7c4dff);
       }
 
+      /* On-page messages area (top) */
       #unity-warning {
         position: absolute;
         left: 12px;
@@ -73,7 +79,13 @@
         display: none;
       }
 
-      /* Rotate overlay for mobile landscape */
+      /* Hide any accidental white blocks (defensive) */
+      #unity-logo, .unity-white-accidental {
+        display: none !important;
+        background: transparent !important;
+      }
+
+      /* Rotate overlay */
       #rotate-overlay {
         position: fixed;
         inset: 0;
@@ -105,12 +117,13 @@
       #rotate-overlay .title { font-weight:700; font-size:20px; margin-bottom:6px; }
       #rotate-overlay .subtitle { font-size:14px; opacity:0.9; line-height:1.3; }
 
-      @media (max-width: 420px) {
-        #rotate-overlay .message { padding: 20px; max-width: 320px; border-radius: 12px; }
-        #rotate-overlay .icon { font-size: 40px; }
+      @media (max-width:420px) {
+        #rotate-overlay .message { padding:20px; max-width:320px; border-radius:12px; }
+        #rotate-overlay .icon { font-size:40px; }
       }
     </style>
   </head>
+
   <body>
     <div id="unity-container">
       <canvas id="unity-canvas" width="960" height="600" tabindex="-1"></canvas>
@@ -122,7 +135,7 @@
         </div>
       </div>
 
-      <div id="unity-warning"> </div>
+      <div id="unity-warning"></div>
     </div>
 
     <div id="rotate-overlay" aria-hidden="true">
@@ -135,12 +148,13 @@
     </div>
 
     <script>
-      /* =========================================================
-         CONFIG: update these if your Build folder filenames differ
-         ========================================================= */
+      /* =========================
+         CONFIG: update filenames
+         ========================= */
       var buildUrl = "Build";
-      // IMPORTANT: change these filenames to match what is actually in your Build folder.
-      // I used your earlier filenames with spaces "New folder.*" — if your files differ, update here.
+
+      // Make sure these filenames match exactly what's in your Build folder.
+      // If your Build folder has different names, change them here.
       var expectedFiles = [
         { key: "loader", url: buildUrl + "/New folder.loader.js" },
         { key: "data", url: buildUrl + "/New folder.data.unityweb" },
@@ -148,7 +162,6 @@
         { key: "wasm", url: buildUrl + "/New folder.wasm.unityweb" }
       ];
 
-      // Unity create config (ensure dataUrl/framework/code match your Build files)
       var config = {
         arguments: [],
         dataUrl: buildUrl + "/New folder.data.unityweb",
@@ -161,9 +174,9 @@
         showBanner: unityShowBanner
       };
 
-      /* =========================================================
+      /* =========================
          DOM refs
-         ========================================================= */
+         ========================= */
       var container = document.querySelector("#unity-container");
       var canvas = document.querySelector("#unity-canvas");
       var loadingBar = document.querySelector("#unity-loading-bar");
@@ -171,11 +184,10 @@
       var warningBanner = document.querySelector("#unity-warning");
       var rotateOverlay = document.getElementById("rotate-overlay");
 
-      /* =========================================================
-         Utility: show an on-page banner (info/warn/error)
-         ========================================================= */
+      /* =========================
+         Helper: messages
+         ========================= */
       function showPageMessage(text, level) {
-        // level: "error", "warn", "info"
         var container = document.querySelector("#unity-warning");
         var div = document.createElement("div");
         div.style.padding = "10px";
@@ -183,32 +195,25 @@
         div.style.borderRadius = "6px";
         div.style.color = "#fff";
         div.style.fontFamily = "system-ui, Arial, sans-serif";
-        if (level === "error") {
-          div.style.background = "linear-gradient(90deg, #ff5f5f, #ff2f2f)";
-        } else if (level === "warn") {
-          div.style.background = "linear-gradient(90deg,#ffb86b,#ff8c3a)";
-        } else {
-          div.style.background = "rgba(255,255,255,0.06)";
-        }
+        if (level === "error") div.style.background = "linear-gradient(90deg, #ff5f5f, #ff2f2f)";
+        else if (level === "warn") div.style.background = "linear-gradient(90deg,#ffb86b,#ff8c3a)";
+        else div.style.background = "rgba(255,255,255,0.06)";
         div.textContent = text;
         container.appendChild(div);
         container.style.display = "block";
       }
-
       function clearPageMessages() {
         var container = document.querySelector("#unity-warning");
         container.innerHTML = "";
         container.style.display = "none";
       }
 
-      /* =========================================================
-         Device detection & layout behavior
-         ========================================================= */
+      /* =========================
+         Device detection + layout
+         ========================= */
       var isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      var isSmallScreen = window.matchMedia("(max-width: 900px)").matches;
-      var isMobile = isMobileUA || isSmallScreen;
+      var isMobile = isMobileUA || window.matchMedia("(max-width:900px)").matches;
 
-      // Add viewport meta for true mobile sizing
       if (isMobileUA) {
         var meta = document.createElement('meta');
         meta.name = 'viewport';
@@ -217,49 +222,56 @@
       }
 
       function applyPcLayout() {
-        container.style.background = "black";
+        // target portrait resolution
         var targetW = 1080;
         var targetH = 1920;
         var vw = window.innerWidth;
         var vh = window.innerHeight;
+
+        // scale to fit while preserving aspect ratio
         var scale = Math.min(vw / targetW, vh / targetH, 1);
+
+        // CSS sizes
         var cssW = Math.round(targetW * scale);
         var cssH = Math.round(targetH * scale);
+
+        // Apply CSS size
         canvas.style.width = cssW + "px";
         canvas.style.height = cssH + "px";
-        canvas.style.maxWidth = "100%";
-        canvas.style.maxHeight = "100%";
-        // set canvas pixel resolution using devicePixelRatio for crispness
-        var dpr = window.devicePixelRatio || 1;
-        canvas.width = Math.round(targetW * dpr);
-        canvas.height = Math.round(targetH * dpr);
-        document.body.style.background = "black";
+
+        // Set drawing buffer size: CSS px * devicePixelRatio
+        var dpr = Math.max(window.devicePixelRatio || 1, 1);
+        canvas.width = Math.round(cssW * dpr);
+        canvas.height = Math.round(cssH * dpr);
+
+        // Ensure container black background (letterbox)
+        container.style.background = "#000";
+        document.body.style.background = "#000";
       }
 
       function applyMobileLayout() {
-        container.style.background = "black";
-        canvas.style.width = "100vw";
-        canvas.style.height = "100vh";
-        canvas.style.maxWidth = "100%";
-        canvas.style.maxHeight = "100%";
-        canvas.style.borderRadius = "0";
-        var dpr = window.devicePixelRatio || 1;
-        var w = Math.max(window.innerWidth, 1);
-        var h = Math.max(window.innerHeight, 1);
-        canvas.width = Math.round(w * dpr);
-        canvas.height = Math.round(h * dpr);
-        document.body.style.background = "black";
+        // Canvas visually fills viewport
+        canvas.style.width = window.innerWidth + "px";
+        canvas.style.height = window.innerHeight + "px";
+
+        // Drawing buffer = CSS size * devicePixelRatio
+        var dpr = Math.max(window.devicePixelRatio || 1, 1);
+        canvas.width = Math.round(window.innerWidth * dpr);
+        canvas.height = Math.round(window.innerHeight * dpr);
+
+        container.style.background = "#000";
+        document.body.style.background = "#000";
       }
 
       function applyLayout() {
-        // refresh mobile detection by viewport
-        isMobile = isMobileUA || window.matchMedia("(max-width: 900px)").matches;
+        isMobile = isMobileUA || window.matchMedia("(max-width:900px)").matches;
         if (isMobile) applyMobileLayout();
         else applyPcLayout();
       }
 
-      // determine portrait by window dims
-      function isPortrait() { return window.innerHeight >= window.innerWidth; }
+      function isPortrait() {
+        return window.innerHeight >= window.innerWidth;
+      }
 
       function showRotateOverlay(show) {
         if (!isMobile) {
@@ -279,7 +291,7 @@
       }
 
       function onResizeOrRotate() {
-        isMobile = isMobileUA || window.matchMedia("(max-width: 900px)").matches;
+        isMobile = isMobileUA || window.matchMedia("(max-width:900px)").matches;
         applyLayout();
         if (isMobile && !isPortrait()) showRotateOverlay(true);
         else showRotateOverlay(false);
@@ -287,22 +299,49 @@
 
       window.addEventListener("orientationchange", onResizeOrRotate);
       window.addEventListener("resize", onResizeOrRotate);
-      setTimeout(onResizeOrRotate, 200);
+      setTimeout(onResizeOrRotate, 120);
 
-      /* =========================================================
-         Loader with robust checks + helpful messages
-         ========================================================= */
+      /* =========================
+         Prevent accidental white overlays (defensive CSS patch)
+         ========================= */
+      // hide any unexpectedly positioned white element inserted by other CSS
+      (function defensiveHide() {
+        // check for large white boxes in DOM and hide them (only during debug)
+        var all = document.querySelectorAll("div, section, header, main");
+        for (var i = 0; i < all.length; i++) {
+          var el = all[i];
+          var bg = window.getComputedStyle(el).backgroundColor || "";
+          if (!bg) continue;
+          // If element is white-ish and covers a big area at top-left, hide it
+          if ((bg.indexOf("rgb(255, 255, 255)") !== -1 || bg.indexOf("rgba(255, 255, 255") !== -1 || bg.indexOf("#fff") !== -1 || bg.indexOf("#ffffff") !== -1)
+              && el.getBoundingClientRect().width > (window.innerWidth * 0.4)
+              && el.getBoundingClientRect().height > (window.innerHeight * 0.08)
+              && el.getBoundingClientRect().left < 20 && el.getBoundingClientRect().top < 40) {
+            el.style.display = "none";
+            el.classList.add("unity-white-accidental");
+            console.log("Hid large white element (defensive):", el);
+          }
+        }
+      })();
 
-      // Unregister service workers to avoid stale caching issues during debug
+      /* =========================
+         Loader: file checks + createUnityInstance
+         ========================= */
+
+      // simple showBanner used by Unity runtime (kept for compatibility)
+      function unityShowBanner(msg, type) {
+        showPageMessage(msg, type === "error" ? "error" : "info");
+      }
+
+      // Unregister service worker while debugging (avoid stale caches)
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function(regs) {
           regs.forEach(function(r) {
             try { r.unregister(); console.log("ServiceWorker unregistered:", r); } catch(e){}
           });
-        }).catch(function(e){});
+        }).catch(function(){});
       }
 
-      // Check file availability (HEAD then fallback to GET)
       function checkFilesExist(fileList, timeoutMs) {
         timeoutMs = timeoutMs || 7000;
         var checks = fileList.map(function(f) {
@@ -324,38 +363,32 @@
         return Promise.all(checks);
       }
 
-      // Provide a friendly unityShowBanner used by Unity (kept for compatibility)
-      function unityShowBanner(msg, type) {
-        // show simple banner using the same warning area
-        showPageMessage(msg, type === "error" ? "error" : "info");
-      }
-
-      // Main async loader
       (async function runLoaderChecksAndStart() {
         clearPageMessages();
         showPageMessage("Checking build files...", "info");
         console.log("Checking build files:", expectedFiles);
 
+        var results;
         try {
-          var results = await checkFilesExist(expectedFiles, 7000);
+          results = await checkFilesExist(expectedFiles, 7000);
         } catch (e) {
-          console.error("Error while checking files:", e);
+          console.error("File check error:", e);
           showPageMessage("Error while checking build files: " + e.message, "error");
           return;
         }
         console.log("File existence results:", results);
 
-        var missing = results.filter(r => !r.ok || (typeof r.ok === "undefined" && r.status !== 200));
+        var missing = results.filter(r => !r.ok);
         if (missing.length) {
           missing.forEach(function(m) {
             showPageMessage("Build file not accessible: " + m.url + " (status: " + m.status + " content-type: " + (m.contentType || "unknown") + ")", "error");
           });
           showPageMessage("Common causes: wrong filename/path, served via file:// (use http), CORS, or wrong MIME types for .wasm. Check DevTools Network tab.", "warn");
-          console.error("Missing/failed files:", missing);
+          console.error("Missing/failed build files:", missing);
           return;
         }
 
-        // All looked OK -> load loader script
+        // All files present -> load loader script
         try {
           showPageMessage("All build files found. Loading Unity loader...", "info");
           var loaderUrl = expectedFiles.find(x=>x.key==="loader").url;
@@ -363,15 +396,17 @@
           script.src = loaderUrl;
           script.onload = function() {
             showPageMessage("Loader script loaded. Creating Unity instance...", "info");
+            // ensure layout before creating instance
+            onResizeOrRotate();
             try {
-              // Optionally control matchWebGLToCanvasSize in config here
-              // config.matchWebGLToCanvasSize = false;
+              // create instance and update progress bar
               createUnityInstance(canvas, config, function(progress) {
                 try { progressBarFull.style.width = 100 * progress + "%"; } catch(e){}
+                if (loadingBar && loadingBar.style) loadingBar.style.display = "block";
               }).then(function(instance) {
-                showPageMessage("Unity instance created.", "info");
-                loadingBar.style.display = "none";
-                console.log("Unity instance:", instance);
+                if (loadingBar) loadingBar.style.display = "none";
+                clearPageMessages();
+                console.log("Unity instance created:", instance);
               }).catch(function(err) {
                 console.error("createUnityInstance failed:", err);
                 showPageMessage("ERROR: createUnityInstance failed. See console for details.", "error");
@@ -379,7 +414,7 @@
               });
             } catch (ex) {
               console.error("Exception while creating Unity instance:", ex);
-              showPageMessage("Exception creating Unity instance: " + ex.message, "error");
+              showPageMessage("Exception while creating Unity instance: " + ex.message, "error");
             }
           };
           script.onerror = function(e) {
@@ -393,7 +428,7 @@
         }
       })();
 
-      // Expose helper to let Unity call JS to force a layout recalculation
+      // Expose helper to recalc layout from Unity if needed
       window.__recalculateCanvasLayout = function() {
         onResizeOrRotate();
       };
