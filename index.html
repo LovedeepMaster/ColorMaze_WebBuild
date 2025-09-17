@@ -1,23 +1,23 @@
 <!DOCTYPE html>
 <html lang="en-us">
   <head>
-    <meta charset="utf-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <title>Unity Web Player | ColorMaze</title>
-    <link rel="shortcut icon" href="TemplateData/favicon.ico">
-    <link rel="stylesheet" href="TemplateData/style.css">
-    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="shortcut icon" href="TemplateData/favicon.ico" />
+    <link rel="stylesheet" href="TemplateData/style.css" />
+    <link rel="manifest" href="manifest.webmanifest" />
 
     <style>
-      /* --- basic layout resets --- */
+      /* --- Reset / base --- */
       html, body {
         margin: 0;
         padding: 0;
         height: 100%;
         width: 100%;
-        background: black; /* default black so letterbox area is black */
-        -webkit-font-smoothing:antialiased;
-        -moz-osx-font-smoothing:grayscale;
+        background: black;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
       }
 
       #unity-container {
@@ -31,17 +31,15 @@
         background: black;
       }
 
-      /* Unity canvas default - we'll adjust in JS depending on device */
       #unity-canvas {
         display: block;
-        background: #000; /* fallback background */
+        background: #000;
         max-width: 100%;
         max-height: 100%;
         box-shadow: 0 6px 30px rgba(0,0,0,0.6);
         border-radius: 6px;
       }
 
-      /* Loading / warning areas from original file (kept) */
       #unity-loading-bar {
         position: absolute;
         left: 50%;
@@ -49,7 +47,7 @@
         transform: translate(-50%, -50%);
         width: 60%;
         max-width: 600px;
-        display: none; /* toggled from script */
+        display: none;
         z-index: 50;
       }
       #unity-loading-bar #unity-progress-bar-empty {
@@ -72,13 +70,14 @@
         top: 12px;
         z-index: 60;
         pointer-events: none;
+        display: none;
       }
 
-      /* Stylish portrait-only overlay shown when rotated to landscape on mobile */
+      /* Rotate overlay for mobile landscape */
       #rotate-overlay {
         position: fixed;
         inset: 0;
-        display: none; /* show/hide via JS */
+        display: none;
         align-items: center;
         justify-content: center;
         z-index: 9999;
@@ -102,25 +101,10 @@
         border: 1px solid rgba(255,255,255,0.06);
         transform: translateY(-6px);
       }
-      #rotate-overlay .icon {
-        font-size: 46px;
-        margin-bottom: 10px;
-        display: block;
-        filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6));
-      }
-      #rotate-overlay .title {
-        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-        font-weight: 700;
-        font-size: 20px;
-        margin-bottom: 6px;
-      }
-      #rotate-overlay .subtitle {
-        font-size: 14px;
-        opacity: 0.9;
-        line-height: 1.3;
-      }
+      #rotate-overlay .icon { font-size: 46px; margin-bottom: 10px; display:block; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6)); }
+      #rotate-overlay .title { font-weight:700; font-size:20px; margin-bottom:6px; }
+      #rotate-overlay .subtitle { font-size:14px; opacity:0.9; line-height:1.3; }
 
-      /* small-screen tweaks for overlay */
       @media (max-width: 420px) {
         #rotate-overlay .message { padding: 20px; max-width: 320px; border-radius: 12px; }
         #rotate-overlay .icon { font-size: 40px; }
@@ -141,7 +125,6 @@
       <div id="unity-warning"> </div>
     </div>
 
-    <!-- Portrait-only overlay (shown on mobile when rotated to landscape) -->
     <div id="rotate-overlay" aria-hidden="true">
       <div class="backdrop"></div>
       <div class="message" role="alert" aria-live="assertive">
@@ -152,39 +135,20 @@
     </div>
 
     <script>
-      window.addEventListener("load", function () {
-        if ("serviceWorker" in navigator) {
-          navigator.serviceWorker.register("ServiceWorker.js");
-        }
-      });
-
-      var container = document.querySelector("#unity-container");
-      var canvas = document.querySelector("#unity-canvas");
-      var loadingBar = document.querySelector("#unity-loading-bar");
-      var progressBarFull = document.querySelector("#unity-progress-bar-full");
-      var warningBanner = document.querySelector("#unity-warning");
-      var rotateOverlay = document.getElementById("rotate-overlay");
-
-      function unityShowBanner(msg, type) {
-        function updateBannerVisibility() {
-          warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
-        }
-        var div = document.createElement('div');
-        div.innerHTML = msg;
-        warningBanner.appendChild(div);
-        if (type == 'error') div.style = 'background: red; padding: 10px;';
-        else {
-          if (type == 'warning') div.style = 'background: yellow; padding: 10px;';
-          setTimeout(function() {
-            if(div.parentElement) warningBanner.removeChild(div);
-            updateBannerVisibility();
-          }, 5000);
-        }
-        updateBannerVisibility();
-      }
-
+      /* =========================================================
+         CONFIG: update these if your Build folder filenames differ
+         ========================================================= */
       var buildUrl = "Build";
-      var loaderUrl = buildUrl + "/New folder.loader.js";
+      // IMPORTANT: change these filenames to match what is actually in your Build folder.
+      // I used your earlier filenames with spaces "New folder.*" — if your files differ, update here.
+      var expectedFiles = [
+        { key: "loader", url: buildUrl + "/New folder.loader.js" },
+        { key: "data", url: buildUrl + "/New folder.data.unityweb" },
+        { key: "framework", url: buildUrl + "/New folder.framework.js.unityweb" },
+        { key: "wasm", url: buildUrl + "/New folder.wasm.unityweb" }
+      ];
+
+      // Unity create config (ensure dataUrl/framework/code match your Build files)
       var config = {
         arguments: [],
         dataUrl: buildUrl + "/New folder.data.unityweb",
@@ -194,21 +158,57 @@
         companyName: "LovedeepSinghGame",
         productName: "ColorMaze",
         productVersion: "0.1.0",
-        showBanner: unityShowBanner,
+        showBanner: unityShowBanner
       };
 
-      loadingBar.style.display = "block";
+      /* =========================================================
+         DOM refs
+         ========================================================= */
+      var container = document.querySelector("#unity-container");
+      var canvas = document.querySelector("#unity-canvas");
+      var loadingBar = document.querySelector("#unity-loading-bar");
+      var progressBarFull = document.querySelector("#unity-progress-bar-full");
+      var warningBanner = document.querySelector("#unity-warning");
+      var rotateOverlay = document.getElementById("rotate-overlay");
 
-      /* ---------- Device detection + layout behavior ---------- */
+      /* =========================================================
+         Utility: show an on-page banner (info/warn/error)
+         ========================================================= */
+      function showPageMessage(text, level) {
+        // level: "error", "warn", "info"
+        var container = document.querySelector("#unity-warning");
+        var div = document.createElement("div");
+        div.style.padding = "10px";
+        div.style.margin = "6px";
+        div.style.borderRadius = "6px";
+        div.style.color = "#fff";
+        div.style.fontFamily = "system-ui, Arial, sans-serif";
+        if (level === "error") {
+          div.style.background = "linear-gradient(90deg, #ff5f5f, #ff2f2f)";
+        } else if (level === "warn") {
+          div.style.background = "linear-gradient(90deg,#ffb86b,#ff8c3a)";
+        } else {
+          div.style.background = "rgba(255,255,255,0.06)";
+        }
+        div.textContent = text;
+        container.appendChild(div);
+        container.style.display = "block";
+      }
 
-      // simple mobile test (matches original file's approach)
+      function clearPageMessages() {
+        var container = document.querySelector("#unity-warning");
+        container.innerHTML = "";
+        container.style.display = "none";
+      }
+
+      /* =========================================================
+         Device detection & layout behavior
+         ========================================================= */
       var isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      // but also check screen size to be safe
       var isSmallScreen = window.matchMedia("(max-width: 900px)").matches;
-
       var isMobile = isMobileUA || isSmallScreen;
 
-      // Apply viewport meta for mobile to ensure consistent sizing
+      // Add viewport meta for true mobile sizing
       if (isMobileUA) {
         var meta = document.createElement('meta');
         meta.name = 'viewport';
@@ -216,92 +216,60 @@
         document.getElementsByTagName('head')[0].appendChild(meta);
       }
 
-      // Function to set PC behaviour: fixed gameplay area 1080x1920 centered,
-      // with black letterboxing filling empty space.
       function applyPcLayout() {
-        // Set container background black (already set in CSS)
         container.style.background = "black";
-
-        // Set canvas CSS size to 1080x1920 (portrait). Keep it centered and scale down if viewport smaller.
         var targetW = 1080;
         var targetH = 1920;
         var vw = window.innerWidth;
         var vh = window.innerHeight;
-
-        // compute scale so it fits inside viewport while maintaining aspect ratio
         var scale = Math.min(vw / targetW, vh / targetH, 1);
         var cssW = Math.round(targetW * scale);
         var cssH = Math.round(targetH * scale);
-
         canvas.style.width = cssW + "px";
         canvas.style.height = cssH + "px";
         canvas.style.maxWidth = "100%";
         canvas.style.maxHeight = "100%";
-
-        // set actual canvas resolution for crispness (match devicePixelRatio)
+        // set canvas pixel resolution using devicePixelRatio for crispness
         var dpr = window.devicePixelRatio || 1;
-        canvas.width = Math.round(targetW * (dpr * scale / scale)); // effectively targetW * dpr
-        canvas.height = Math.round(targetH * (dpr * scale / scale)); // effectively targetH * dpr
-
-        // Ensure the rest of the page remains black (letterbox)
+        canvas.width = Math.round(targetW * dpr);
+        canvas.height = Math.round(targetH * dpr);
         document.body.style.background = "black";
       }
 
-      // Function to set Mobile behaviour: canvas fills the viewport
       function applyMobileLayout() {
-        // Remove letterboxing; game should cover whole browser area.
-        container.style.background = "black"; // in case of transient areas
-        // Full-viewport CSS
+        container.style.background = "black";
         canvas.style.width = "100vw";
         canvas.style.height = "100vh";
         canvas.style.maxWidth = "100%";
         canvas.style.maxHeight = "100%";
         canvas.style.borderRadius = "0";
-
-        // set actual canvas pixel size for WebGL rendering
         var dpr = window.devicePixelRatio || 1;
         var w = Math.max(window.innerWidth, 1);
         var h = Math.max(window.innerHeight, 1);
         canvas.width = Math.round(w * dpr);
         canvas.height = Math.round(h * dpr);
-
-        // body background shouldn't show; keep black fallback
         document.body.style.background = "black";
       }
 
-      // Function to decide and apply layout
       function applyLayout() {
-        // If user agent says mobile and viewport is narrower than tall => treat as mobile
-        if (isMobile) {
-          applyMobileLayout();
-        } else {
-          applyPcLayout();
-        }
+        // refresh mobile detection by viewport
+        isMobile = isMobileUA || window.matchMedia("(max-width: 900px)").matches;
+        if (isMobile) applyMobileLayout();
+        else applyPcLayout();
       }
 
-      // Run initial layout
-      applyLayout();
-
-      /* ---------- Portrait orientation enforcement on mobile ---------- */
-
-      function isPortrait() {
-        // Use window dimensions for robust check
-        return window.innerHeight >= window.innerWidth;
-      }
+      // determine portrait by window dims
+      function isPortrait() { return window.innerHeight >= window.innerWidth; }
 
       function showRotateOverlay(show) {
         if (!isMobile) {
-          // only show overlay on mobile devices
           rotateOverlay.style.display = "none";
           rotateOverlay.setAttribute("aria-hidden", "true");
           return;
         }
-
         if (show) {
           rotateOverlay.style.display = "flex";
           rotateOverlay.setAttribute("aria-hidden", "false");
-
-          // optionally stop pointer events to the canvas while overlay active
           canvas.style.pointerEvents = "none";
         } else {
           rotateOverlay.style.display = "none";
@@ -310,49 +278,122 @@
         }
       }
 
-      // On resize / orientation change, reapply layout and show/hide overlay
       function onResizeOrRotate() {
-        // re-evaluate isMobile based on viewport (handles desktop narrow windows)
         isMobile = isMobileUA || window.matchMedia("(max-width: 900px)").matches;
-
-        // reapply layout (important for when user resizes window)
         applyLayout();
-
-        // Show rotate overlay on mobile when in landscape (since game is portrait only)
-        if (isMobile && !isPortrait()) {
-          showRotateOverlay(true);
-        } else {
-          showRotateOverlay(false);
-        }
+        if (isMobile && !isPortrait()) showRotateOverlay(true);
+        else showRotateOverlay(false);
       }
 
-      // Listen for orientationchange and resize
       window.addEventListener("orientationchange", onResizeOrRotate);
       window.addEventListener("resize", onResizeOrRotate);
+      setTimeout(onResizeOrRotate, 200);
 
-      // Also run once after a small timeout to ensure correct sizes after load
-      setTimeout(onResizeOrRotate, 250);
+      /* =========================================================
+         Loader with robust checks + helpful messages
+         ========================================================= */
 
-      /* ---------- Load Unity instance (unchanged logic) ---------- */
-      var script = document.createElement("script");
-      script.src = loaderUrl;
-      script.onload = () => {
-        // If you want to decouple Unity's internal canvas sizing behavior, you can set:
-        // config.matchWebGLToCanvasSize = false;
-        // and control canvas.width / canvas.height yourself. We leave default for now.
-        createUnityInstance(canvas, config, (progress) => {
-          progressBarFull.style.width = 100 * progress + "%";
-        }).then((unityInstance) => {
-          loadingBar.style.display = "none";
-        }).catch((message) => {
-          alert(message);
+      // Unregister service workers to avoid stale caching issues during debug
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          regs.forEach(function(r) {
+            try { r.unregister(); console.log("ServiceWorker unregistered:", r); } catch(e){}
+          });
+        }).catch(function(e){});
+      }
+
+      // Check file availability (HEAD then fallback to GET)
+      function checkFilesExist(fileList, timeoutMs) {
+        timeoutMs = timeoutMs || 7000;
+        var checks = fileList.map(function(f) {
+          return new Promise(function(resolve) {
+            var controller = new AbortController();
+            var signal = controller.signal;
+            fetch(f.url, { method: "HEAD", signal: signal }).then(function(resp) {
+              resolve({ key: f.key, url: f.url, ok: resp.ok, status: resp.status, contentType: resp.headers.get("content-type") });
+            }).catch(function() {
+              fetch(f.url, { method: "GET", signal: signal }).then(function(resp2) {
+                resolve({ key: f.key, url: f.url, ok: resp2.ok, status: resp2.status, contentType: resp2.headers.get("content-type") });
+              }).catch(function(err) {
+                resolve({ key: f.key, url: f.url, ok: false, status: (err && err.message) || "network-error" });
+              });
+            });
+            setTimeout(function(){ controller.abort(); }, timeoutMs);
+          });
         });
-      };
-      document.body.appendChild(script);
+        return Promise.all(checks);
+      }
 
-      /* Optional: expose a function Unity can call to force layout re-evaluation.
-         Example from Unity: Application.ExternalCall("JSCallName"); or use SendMessage.
-      */
+      // Provide a friendly unityShowBanner used by Unity (kept for compatibility)
+      function unityShowBanner(msg, type) {
+        // show simple banner using the same warning area
+        showPageMessage(msg, type === "error" ? "error" : "info");
+      }
+
+      // Main async loader
+      (async function runLoaderChecksAndStart() {
+        clearPageMessages();
+        showPageMessage("Checking build files...", "info");
+        console.log("Checking build files:", expectedFiles);
+
+        try {
+          var results = await checkFilesExist(expectedFiles, 7000);
+        } catch (e) {
+          console.error("Error while checking files:", e);
+          showPageMessage("Error while checking build files: " + e.message, "error");
+          return;
+        }
+        console.log("File existence results:", results);
+
+        var missing = results.filter(r => !r.ok || (typeof r.ok === "undefined" && r.status !== 200));
+        if (missing.length) {
+          missing.forEach(function(m) {
+            showPageMessage("Build file not accessible: " + m.url + " (status: " + m.status + " content-type: " + (m.contentType || "unknown") + ")", "error");
+          });
+          showPageMessage("Common causes: wrong filename/path, served via file:// (use http), CORS, or wrong MIME types for .wasm. Check DevTools Network tab.", "warn");
+          console.error("Missing/failed files:", missing);
+          return;
+        }
+
+        // All looked OK -> load loader script
+        try {
+          showPageMessage("All build files found. Loading Unity loader...", "info");
+          var loaderUrl = expectedFiles.find(x=>x.key==="loader").url;
+          var script = document.createElement("script");
+          script.src = loaderUrl;
+          script.onload = function() {
+            showPageMessage("Loader script loaded. Creating Unity instance...", "info");
+            try {
+              // Optionally control matchWebGLToCanvasSize in config here
+              // config.matchWebGLToCanvasSize = false;
+              createUnityInstance(canvas, config, function(progress) {
+                try { progressBarFull.style.width = 100 * progress + "%"; } catch(e){}
+              }).then(function(instance) {
+                showPageMessage("Unity instance created.", "info");
+                loadingBar.style.display = "none";
+                console.log("Unity instance:", instance);
+              }).catch(function(err) {
+                console.error("createUnityInstance failed:", err);
+                showPageMessage("ERROR: createUnityInstance failed. See console for details.", "error");
+                showPageMessage(String(err), "error");
+              });
+            } catch (ex) {
+              console.error("Exception while creating Unity instance:", ex);
+              showPageMessage("Exception creating Unity instance: " + ex.message, "error");
+            }
+          };
+          script.onerror = function(e) {
+            console.error("Failed to load loader script:", loaderUrl, e);
+            showPageMessage("Failed to load loader script: " + loaderUrl, "error");
+          };
+          document.body.appendChild(script);
+        } catch (e) {
+          console.error("Error injecting loader script:", e);
+          showPageMessage("Error injecting loader script: " + e.message, "error");
+        }
+      })();
+
+      // Expose helper to let Unity call JS to force a layout recalculation
       window.__recalculateCanvasLayout = function() {
         onResizeOrRotate();
       };
