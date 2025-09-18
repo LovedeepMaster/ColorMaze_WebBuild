@@ -109,6 +109,23 @@
         #custom-loading-title { font-size: 13px; }
         #custom-progress-empty { height: 14px; }
       }
+
+      /* Additional styles to help center canvas on PC and keep black surrounding area */
+      /* These will be applied/activated from JS for PC; harmless if left present */
+      #unity-container.pc-portrait {
+        background: black;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+
+      /* Ensure canvas is treated as block-level so centering works reliably */
+      #unity-canvas {
+        display: block;
+        max-width: 100%;
+        max-height: 100%;
+      }
     </style>
     <!-- --- End custom styles --- -->
   </head>
@@ -197,20 +214,61 @@
         showBanner: unityShowBanner,
       };
 
-      // By default Unity keeps WebGL canvas render target size matched with
-      // the DOM size of the canvas element (scaled by window.devicePixelRatio)
-      // Set this to false if you want to decouple this synchronization from
-      // happening inside the engine, and you would instead like to size up
-      // the canvas DOM size and WebGL render target sizes yourself.
-      // config.matchWebGLToCanvasSize = false;
+      // -------------------------
+      // Device detection & PC portrait sizing
+      // -------------------------
+      // Determine whether the user is on mobile
+      var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-        // Mobile device style: fill the whole browser client area with the game canvas:
+      // Desired portrait logical resolution for PC
+      var PC_TARGET_WIDTH = 1080;
+      var PC_TARGET_HEIGHT = 1920;
+
+      // Apply PC-only canvas sizing and black surrounding area
+      function applyPcPortraitSizing() {
+        // Add a class so CSS can apply styling (background black, center)
+        container.classList.add("pc-portrait");
+
+        // Tell Unity not to auto-match the canvas DOM size to WebGL render target so we keep control
+        // (this prevents Unity from stomping on our DOM sizing)
+        config.matchWebGLToCanvasSize = false;
+
+        // Set the canvas logical resolution (WebGL render target size)
+        canvas.width = PC_TARGET_WIDTH;
+        canvas.height = PC_TARGET_HEIGHT;
+
+        // Compute a scale so the canvas fits within the current viewport (preserve aspect ratio)
+        // scale <= 1 so we never upscale beyond 1:1
+        var scale = Math.min(window.innerWidth / PC_TARGET_WIDTH, window.innerHeight / PC_TARGET_HEIGHT, 1);
+
+        // Apply CSS size to scale the canvas visually while keeping logical resolution fixed
+        canvas.style.width = Math.round(PC_TARGET_WIDTH * scale) + "px";
+        canvas.style.height = Math.round(PC_TARGET_HEIGHT * scale) + "px";
+
+        // Optionally ensure the canvas is crisp on high-DPR displays by relying on
+        // Unity's internal handling with matchWebGLToCanvasSize = false (Unity will use logical size)
+        // The surrounding container (pc-portrait) has background:black so empty space is black
+      }
+
+      // If device is mobile, append viewport meta (keeps original default behaviour)
+      if (isMobile) {
         var meta = document.createElement('meta');
         meta.name = 'viewport';
         meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
         document.getElementsByTagName('head')[0].appendChild(meta);
+        // Keep config.matchWebGLToCanvasSize default (Unity will manage canvas size)
+      } else {
+        // PC browser detected -> apply portrait sizing and keep it responsive on resize
+        applyPcPortraitSizing();
+        window.addEventListener("resize", function () {
+          // Re-apply sizing on resize to adjust scale
+          applyPcPortraitSizing();
+        });
       }
+
+      // -------------------------
+      // End device detection section
+      // -------------------------
 
       // Make sure the Unity loader (default) is visible while we prepare our custom overlay
       loadingBar.style.display = "block";
