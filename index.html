@@ -152,6 +152,47 @@
         display: none;
       }
 
+      /* === Orientation warning styles (mobile-only UI) === */
+      #rotate-warning {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10001; /* above custom loader so it is clearly visible */
+        pointer-events: none; /* don't block tap input (non-invasive) */
+      }
+
+      #rotate-warning .card {
+        pointer-events: none;
+        background: rgba(0,0,0,0.72);
+        color: #fff;
+        padding: 18px 22px;
+        border-radius: 12px;
+        text-align: center;
+        max-width: 90%;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+      }
+
+      #rotate-warning .title {
+        font-family: sans-serif;
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+
+      #rotate-warning .desc {
+        font-family: sans-serif;
+        font-size: 13px;
+        opacity: 0.95;
+      }
+
+      /* Hide rotate warning by default */
+      #rotate-warning[hidden] {
+        display: none;
+      }
+      /* === end orientation styles === */
+
       /* Responsive tweak for small screens */
       @media (max-width: 420px) {
         #custom-loading-card { padding: 12px; }
@@ -191,6 +232,14 @@
       </div>
     </div>
 
+    <!-- Orientation warning UI (mobile only) -->
+    <div id="rotate-warning" hidden aria-hidden="true">
+      <div class="card" role="status" aria-live="polite">
+        <div class="title">Rotate your device</div>
+        <div class="desc">This game is best played in portrait. Please rotate your phone back to portrait mode.</div>
+      </div>
+    </div>
+
     <script>
       window.addEventListener("load", function () {
         if ("serviceWorker" in navigator) {
@@ -209,6 +258,9 @@
       var customProgressFull = document.querySelector("#custom-progress-full");
       var customProgressPercent = document.querySelector("#custom-progress-percent");
       var customLoadingTitle = document.querySelector("#custom-loading-title");
+
+      // Orientation warning element
+      var rotateWarning = document.querySelector("#rotate-warning");
 
       // Shows a temporary message banner/ribbon for a few seconds, or
       // a permanent error message on top of the canvas if type=='error'.
@@ -297,6 +349,41 @@
         meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
         document.getElementsByTagName('head')[0].appendChild(meta);
         // Keep config.matchWebGLToCanvasSize default (Unity will manage canvas size)
+
+        // Setup orientation detection for mobile devices
+        function isPortraitNow() {
+          // Prefer screen.orientation if available, fallback to matchMedia
+          if (screen && screen.orientation && screen.orientation.type) {
+            return screen.orientation.type.indexOf('portrait') !== -1;
+          }
+          return window.matchMedia && window.matchMedia("(orientation: portrait)").matches;
+        }
+
+        function updateRotateWarning() {
+          if (!isPortraitNow()) {
+            // show warning (remove hidden)
+            rotateWarning.removeAttribute('hidden');
+            rotateWarning.setAttribute('aria-hidden', 'false');
+          } else {
+            // hide warning
+            rotateWarning.setAttribute('hidden', '');
+            rotateWarning.setAttribute('aria-hidden', 'true');
+          }
+        }
+
+        // initial check (cover case: user opens directly in landscape)
+        updateRotateWarning();
+
+        // Listen for orientation changes and resize events (covers broad device support)
+        window.addEventListener('orientationchange', function () {
+          // slight delay to let the OS settle the new orientation/metrics
+          setTimeout(updateRotateWarning, 120);
+        }, false);
+
+        window.addEventListener('resize', function () {
+          // resize will fire when orientation changes on many browsers
+          setTimeout(updateRotateWarning, 80);
+        }, false);
       } else {
         // PC browser detected -> apply portrait sizing and keep it responsive on resize
         applyPcPortraitSizing();
@@ -305,6 +392,10 @@
           applyPcPortraitSizing();
         });
       }
+
+      // -------------------------
+      // End device detection section
+      // -------------------------
 
       // Make sure the Unity loader (default) is visible while we prepare our custom overlay
       // (we hide it via CSS so it will not be seen)
@@ -360,6 +451,9 @@
             // ensure mobile canvas centered horizontally
             canvas.style.marginLeft = "auto";
             canvas.style.marginRight = "auto";
+
+            // Also re-evaluate orientation after Unity starts, in case orientation changed during load
+            if (typeof updateRotateWarning === "function") updateRotateWarning();
           }
         }).catch((message) => {
           // If there's an error, keep overlay visible and show the message as an error banner
