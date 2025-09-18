@@ -35,3 +35,236 @@
         background: rgba(0,0,0,0.45); /* translucent black */
         backdrop-filter: blur(1px);
       }
+
+      /* The loader card that contains the progress bar */
+      #custom-loading-card {
+        position: relative;
+        width: min(800px, 85%);
+        max-width: 900px;
+        padding: 18px;
+        box-sizing: border-box;
+        border-radius: 10px;
+        background: rgba(255,255,255,0.06); /* subtle card */
+        box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+        z-index: 10000; /* above backdrop */
+        pointer-events: none;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        align-items: stretch;
+      }
+
+      #custom-loading-title {
+        font-family: sans-serif;
+        font-size: 14px;
+        color: #fff;
+        text-align: center;
+        user-select: none;
+      }
+
+      /* Progress bar empty area */
+      #custom-progress-empty {
+        width: 100%;
+        height: 18px;
+        background: rgba(255,255,255,0.12);
+        border-radius: 9px;
+        overflow: hidden;
+      }
+
+      /* Progress bar full - width will be set in JS */
+      #custom-progress-full {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, rgba(58,123,213,1) 0%, rgba(0,210,255,1) 100%);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.4) inset;
+        border-radius: 9px 0 0 9px;
+        transition: width 150ms linear;
+      }
+
+      /* Small percent text */
+      #custom-progress-percent {
+        font-family: monospace;
+        font-size: 12px;
+        color: #fff;
+        text-align: center;
+        user-select: none;
+      }
+
+      /* Make sure Unity's default loading bar is below our overlay */
+      #unity-loading-bar {
+        position: relative;
+        z-index: 1;
+        /* optionally disable pointer events on unity's loader */
+        pointer-events: none;
+      }
+
+      /* Hide custom overlay by default; JS will show it */
+      #custom-loading-overlay[hidden] {
+        display: none;
+      }
+
+      /* Responsive tweak for small screens */
+      @media (max-width: 420px) {
+        #custom-loading-card { padding: 12px; }
+        #custom-loading-title { font-size: 13px; }
+        #custom-progress-empty { height: 14px; }
+      }
+    </style>
+    <!-- --- End custom styles --- -->
+  </head>
+  <body>
+    <div id="unity-container">
+      <canvas id="unity-canvas" width=960 height=600 tabindex="-1"></canvas>
+
+      <!-- Unity's default loading bar (kept as-is) -->
+      <div id="unity-loading-bar">
+        <div id="unity-logo"></div>
+        <div id="unity-progress-bar-empty">
+          <div id="unity-progress-bar-full"></div>
+        </div>
+      </div>
+
+      <div id="unity-warning"> </div>
+
+      <!-- Custom overlay that will overlap Unity's loader and mirror progress -->
+      <div id="custom-loading-overlay" hidden>
+        <div id="custom-loading-backdrop"></div>
+
+        <div id="custom-loading-card" aria-hidden="true">
+          <div id="custom-loading-title">Loading — ColorMaze</div>
+          <div id="custom-progress-empty" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+            <div id="custom-progress-full"></div>
+          </div>
+          <div id="custom-progress-percent">0%</div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      window.addEventListener("load", function () {
+        if ("serviceWorker" in navigator) {
+          navigator.serviceWorker.register("ServiceWorker.js");
+        }
+      });
+
+      var container = document.querySelector("#unity-container");
+      var canvas = document.querySelector("#unity-canvas");
+      var loadingBar = document.querySelector("#unity-loading-bar");
+      var progressBarFull = document.querySelector("#unity-progress-bar-full");
+      var warningBanner = document.querySelector("#unity-warning");
+
+      // Custom overlay elements
+      var customOverlay = document.querySelector("#custom-loading-overlay");
+      var customProgressFull = document.querySelector("#custom-progress-full");
+      var customProgressPercent = document.querySelector("#custom-progress-percent");
+      var customLoadingTitle = document.querySelector("#custom-loading-title");
+
+      // Shows a temporary message banner/ribbon for a few seconds, or
+      // a permanent error message on top of the canvas if type=='error'.
+      // If type=='warning', a yellow highlight color is used.
+      // Modify or remove this function to customize the visually presented
+      // way that non-critical warnings and error messages are presented to the
+      // user.
+      function unityShowBanner(msg, type) {
+        function updateBannerVisibility() {
+          warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
+        }
+        var div = document.createElement('div');
+        div.innerHTML = msg;
+        warningBanner.appendChild(div);
+        if (type == 'error') div.style = 'background: red; padding: 10px;';
+        else {
+          if (type == 'warning') div.style = 'background: yellow; padding: 10px;';
+          setTimeout(function() {
+            warningBanner.removeChild(div);
+            updateBannerVisibility();
+          }, 5000);
+        }
+        updateBannerVisibility();
+      }
+
+      var buildUrl = "Build";
+      var loaderUrl = buildUrl + "/New folder.loader.js";
+      var config = {
+        arguments: [],
+        dataUrl: buildUrl + "/New folder.data.unityweb",
+        frameworkUrl: buildUrl + "/New folder.framework.js.unityweb",
+        codeUrl: buildUrl + "/New folder.wasm.unityweb",
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: "LovedeepSinghGame",
+        productName: "ColorMaze",
+        productVersion: "0.1.0",
+        showBanner: unityShowBanner,
+      };
+
+      // By default Unity keeps WebGL canvas render target size matched with
+      // the DOM size of the canvas element (scaled by window.devicePixelRatio)
+      // Set this to false if you want to decouple this synchronization from
+      // happening inside the engine, and you would instead like to size up
+      // the canvas DOM size and WebGL render target sizes yourself.
+      // config.matchWebGLToCanvasSize = false;
+
+      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        // Mobile device style: fill the whole browser client area with the game canvas:
+        var meta = document.createElement('meta');
+        meta.name = 'viewport';
+        meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
+        document.getElementsByTagName('head')[0].appendChild(meta);
+      }
+
+      // Make sure the Unity loader (default) is visible while we prepare our custom overlay
+      loadingBar.style.display = "block";
+
+      // _Important_: ensure unity-loading-bar is below our overlay visually
+      // (we also set pointer-events none on the default bar above in the CSS)
+      loadingBar.style.zIndex = "1";
+
+      // Show our custom overlay
+      customOverlay.removeAttribute("hidden");
+
+      var script = document.createElement("script");
+      script.src = loaderUrl;
+      script.onload = () => {
+        // createUnityInstance provides a progress callback with a number in [0,1].
+        // We'll update both Unity's default progress bar and our custom overlay to the same value.
+        createUnityInstance(canvas, config, (progress) => {
+          // Unity's default progress bar (already in original file)
+          if (progressBarFull) {
+            progressBarFull.style.width = 100 * progress + "%";
+          }
+
+          // Update custom overlay progress bar
+          if (customProgressFull) {
+            // Set width matching unity progress
+            var pct = Math.round(100 * progress);
+            customProgressFull.style.width = pct + "%";
+
+            // Update ARIA and percent text
+            customProgressFull.setAttribute("aria-valuenow", pct);
+            customProgressPercent.textContent = pct + "%";
+
+            // If progress reaches 100% (or very close), hide the overlay after a tiny delay
+            if (progress >= 0.999) {
+              // small delay gives users a sense of completion and avoids flash
+              setTimeout(function(){
+                // hide overlay and unity loading bar
+                customOverlay.setAttribute("hidden", "");
+                loadingBar.style.display = "none";
+              }, 180);
+            }
+          }
+        }).then((unityInstance) => {
+          // Unity instance loaded successfully — ensure everything hidden
+          customOverlay.setAttribute("hidden", "");
+          loadingBar.style.display = "none";
+        }).catch((message) => {
+          // If there's an error, keep overlay visible and show the message as an error banner
+          customOverlay.removeAttribute("hidden");
+          unityShowBanner("Build error: " + message, "error");
+          console.error(message);
+        });
+      };
+      document.body.appendChild(script);
+    </script>
+  </body>
+</html>
