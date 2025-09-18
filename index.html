@@ -137,6 +137,16 @@
         max-width: 1200px;
       }
 
+      /* === NEW: hide Unity's default loading bar completely so only our custom bar is visible === */
+      /* Use !important to override any inline style changes Unity script might set. */
+      #unity-loading-bar {
+        display: none !important;
+        visibility: hidden !important;
+        /* keep it accessible state-wise: */
+        aria-hidden: true;
+      }
+      /* === end hide rule === */
+
       /* Hide custom overlay by default; JS will show it */
       #custom-loading-overlay[hidden] {
         display: none;
@@ -157,8 +167,8 @@
     <div id="unity-container">
       <canvas id="unity-canvas" width=960 height=600 tabindex="-1"></canvas>
 
-      <!-- Unity's default loading bar (kept as-is visually but positioned absolute so it doesn't change layout) -->
-      <div id="unity-loading-bar">
+      <!-- Unity's default loading bar (kept in DOM for fallback but hidden via CSS & aria-hidden) -->
+      <div id="unity-loading-bar" aria-hidden="true">
         <div id="unity-logo"></div>
         <div id="unity-progress-bar-empty">
           <div id="unity-progress-bar-full"></div>
@@ -297,6 +307,7 @@
       }
 
       // Make sure the Unity loader (default) is visible while we prepare our custom overlay
+      // (we hide it via CSS so it will not be seen)
       loadingBar.style.display = "block";
 
       // _Important_: ensure unity-loading-bar is below our overlay visually
