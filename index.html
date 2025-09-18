@@ -50,7 +50,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        pointer-events: none; /* let clicks pass through if needed */
+        pointer-events: none; /* let clicks pass through if needed (custom loader itself is non-interactive) */
         z-index: 9999; /* higher than Unity's default loader */
       }
 
@@ -160,7 +160,7 @@
         align-items: center;
         justify-content: center;
         z-index: 10001; /* above custom loader so it is clearly visible */
-        pointer-events: none; /* don't block tap input (non-invasive) */
+        pointer-events: none; /* changed dynamically to intercept input when active */
       }
 
       #rotate-warning .card {
@@ -192,6 +192,17 @@
         display: none;
       }
       /* === end orientation styles === */
+
+      /* Blocker that intercepts all input while rotate-warning is visible.
+         Initially hidden; when active it will sit above everything and catch pointer/key events. */
+      #rotate-input-blocker {
+        position: fixed;
+        inset: 0;
+        z-index: 10002; /* above rotate-warning */
+        background: transparent; /* invisible but intercepts input */
+        display: none; /* toggled via JS */
+        touch-action: none; /* prevent gestures */
+      }
 
       /* Responsive tweak for small screens */
       @media (max-width: 420px) {
@@ -240,6 +251,9 @@
       </div>
     </div>
 
+    <!-- Invisible input blocker used while rotate-warning is visible -->
+    <div id="rotate-input-blocker" aria-hidden="true" tabindex="-1"></div>
+
     <script>
       window.addEventListener("load", function () {
         if ("serviceWorker" in navigator) {
@@ -261,6 +275,11 @@
 
       // Orientation warning element
       var rotateWarning = document.querySelector("#rotate-warning");
+      var rotateBlocker = document.querySelector("#rotate-input-blocker");
+
+      // Utility variables used by blocker
+      var blockerActive = false;
+      var _blockerHandlers = [];
 
       // Shows a temporary message banner/ribbon for a few seconds, or
       // a permanent error message on top of the canvas if type=='error'.
@@ -342,6 +361,69 @@
         canvas.style.marginRight = "auto";
       }
 
+      // Helper to activate the input blocker (prevent all interactions)
+      function activateRotateBlocker() {
+        if (blockerActive) return;
+        blockerActive = true;
+
+        // Show the invisible blocker div above everything and allow it to catch events
+        rotateBlocker.style.display = "block";
+        rotateBlocker.setAttribute("aria-hidden", "false");
+
+        // Ensure rotateWarning is visible (the UI card)
+        rotateWarning.removeAttribute("hidden");
+        rotateWarning.setAttribute("aria-hidden", "false");
+
+        // Make blocker capture pointer events
+        rotateBlocker.style.pointerEvents = "auto";
+        rotateWarning.style.pointerEvents = "none"; // keep card non-interactive itself
+
+        // Also set canvas non-interactive as defensive measure
+        canvas.style.pointerEvents = "none";
+
+        // Install capturing handlers to prevent keyboard/gamepad/scroll interactions
+        var preventer = function(e) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+          return false;
+        };
+
+        // Events to block comprehensively
+        var events = ['pointerdown','pointerup','pointermove','touchstart','touchend','touchmove','keydown','wheel','gamepadconnected','gamepadbuttondown'];
+
+        events.forEach(function(evt){
+          window.addEventListener(evt, preventer, true);
+          _blockerHandlers.push({evt:evt, fn:preventer});
+        });
+
+        // Put focus on the blocker so it captures keyboard input on some browsers
+        rotateBlocker.tabIndex = -1;
+        rotateBlocker.focus && rotateBlocker.focus();
+      }
+
+      // Helper to deactivate the input blocker (restore interactions)
+      function deactivateRotateBlocker() {
+        if (!blockerActive) return;
+        blockerActive = false;
+
+        // Hide blocker and restore attributes
+        rotateBlocker.style.display = "none";
+        rotateBlocker.setAttribute("aria-hidden", "true");
+
+        // Hide rotate warning
+        rotateWarning.setAttribute("hidden", "");
+        rotateWarning.setAttribute("aria-hidden", "true");
+
+        // Restore canvas interactive state
+        canvas.style.pointerEvents = "";
+
+        // Remove installed handlers
+        _blockerHandlers.forEach(function(h){
+          window.removeEventListener(h.evt, h.fn, true);
+        });
+        _blockerHandlers = [];
+      }
+
       // If device is mobile, append viewport meta (keeps original default behaviour)
       if (isMobile) {
         var meta = document.createElement('meta');
@@ -361,13 +443,11 @@
 
         function updateRotateWarning() {
           if (!isPortraitNow()) {
-            // show warning (remove hidden)
-            rotateWarning.removeAttribute('hidden');
-            rotateWarning.setAttribute('aria-hidden', 'false');
+            // show warning (remove hidden) and block input
+            activateRotateBlocker();
           } else {
-            // hide warning
-            rotateWarning.setAttribute('hidden', '');
-            rotateWarning.setAttribute('aria-hidden', 'true');
+            // hide warning and unblock input
+            deactivateRotateBlocker();
           }
         }
 
