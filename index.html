@@ -10,11 +10,37 @@
 
     <!-- --- Custom styles for overlay loader --- -->
     <style>
+      /* Ensure full-height page with no default margins that could shift layout */
+      html, body {
+        height: 100%;
+        margin: 0;
+        background: #000; /* default black background behind container */
+      }
+
       /* Ensure the unity-container is positioned so absolute overlay can sit on top */
       #unity-container {
         position: relative;
         width: 100%;
-        height: 100%;
+        height: 100vh; /* full viewport height so vertical centering works */
+        box-sizing: border-box;
+      }
+
+      /* When PC portrait mode is applied we use flex centering */
+      #unity-container.pc-portrait {
+        background: black;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+
+      /* Ensure canvas is treated as block-level so centering works reliably */
+      #unity-canvas {
+        display: block;
+        margin: 0 auto; /* ensure horizontal centering even if not flexed */
+        max-width: 100%;
+        max-height: 100%;
+        box-sizing: border-box;
       }
 
       /* Custom overlay that will cover Unity's default loader */
@@ -90,12 +116,25 @@
         user-select: none;
       }
 
-      /* Make sure Unity's default loading bar is below our overlay */
+      /* Make sure Unity's default loading bar is below our overlay and taken out of layout flow */
       #unity-loading-bar {
-        position: relative;
+        position: absolute; /* <-- take out of document flow so it doesn't affect centering */
+        left: 0;
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
         z-index: 1;
-        /* optionally disable pointer events on unity's loader */
-        pointer-events: none;
+        pointer-events: none; /* optionally disable pointer events on unity's loader */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+      }
+
+      /* Keep the default loader's inner progress container with limited width */
+      #unity-progress-bar-empty {
+        width: 80%;
+        max-width: 1200px;
       }
 
       /* Hide custom overlay by default; JS will show it */
@@ -108,24 +147,9 @@
         #custom-loading-card { padding: 12px; }
         #custom-loading-title { font-size: 13px; }
         #custom-progress-empty { height: 14px; }
+        #unity-progress-bar-empty { width: 90%; }
       }
 
-      /* Additional styles to help center canvas on PC and keep black surrounding area */
-      /* These will be applied/activated from JS for PC; harmless if left present */
-      #unity-container.pc-portrait {
-        background: black;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        overflow: hidden;
-      }
-
-      /* Ensure canvas is treated as block-level so centering works reliably */
-      #unity-canvas {
-        display: block;
-        max-width: 100%;
-        max-height: 100%;
-      }
     </style>
     <!-- --- End custom styles --- -->
   </head>
@@ -133,7 +157,7 @@
     <div id="unity-container">
       <canvas id="unity-canvas" width=960 height=600 tabindex="-1"></canvas>
 
-      <!-- Unity's default loading bar (kept as-is) -->
+      <!-- Unity's default loading bar (kept as-is visually but positioned absolute so it doesn't change layout) -->
       <div id="unity-loading-bar">
         <div id="unity-logo"></div>
         <div id="unity-progress-bar-empty">
@@ -245,9 +269,15 @@
         canvas.style.width = Math.round(PC_TARGET_WIDTH * scale) + "px";
         canvas.style.height = Math.round(PC_TARGET_HEIGHT * scale) + "px";
 
-        // Optionally ensure the canvas is crisp on high-DPR displays by relying on
-        // Unity's internal handling with matchWebGLToCanvasSize = false (Unity will use logical size)
-        // The surrounding container (pc-portrait) has background:black so empty space is black
+        // Make sure canvas is centered even before Unity finishes loading
+        // Ensure container is using flex centering (defensive)
+        container.style.display = "flex";
+        container.style.alignItems = "center";
+        container.style.justifyContent = "center";
+
+        // Also set canvas margin auto to ensure horizontal centering in any layout mode
+        canvas.style.marginLeft = "auto";
+        canvas.style.marginRight = "auto";
       }
 
       // If device is mobile, append viewport meta (keeps original default behaviour)
@@ -266,15 +296,10 @@
         });
       }
 
-      // -------------------------
-      // End device detection section
-      // -------------------------
-
       // Make sure the Unity loader (default) is visible while we prepare our custom overlay
       loadingBar.style.display = "block";
 
       // _Important_: ensure unity-loading-bar is below our overlay visually
-      // (we also set pointer-events none on the default bar above in the CSS)
       loadingBar.style.zIndex = "1";
 
       // Show our custom overlay
@@ -312,9 +337,19 @@
             }
           }
         }).then((unityInstance) => {
-          // Unity instance loaded successfully — ensure everything hidden
+          // Unity instance loaded successfully — ensure everything hidden and centered
           customOverlay.setAttribute("hidden", "");
           loadingBar.style.display = "none";
+
+          // Unity may take over canvas sizing; re-assert centering just in case
+          if (!isMobile) {
+            // on PC re-apply our centering rules (Unity may adjust style attributes)
+            applyPcPortraitSizing();
+          } else {
+            // ensure mobile canvas centered horizontally
+            canvas.style.marginLeft = "auto";
+            canvas.style.marginRight = "auto";
+          }
         }).catch((message) => {
           // If there's an error, keep overlay visible and show the message as an error banner
           customOverlay.removeAttribute("hidden");
