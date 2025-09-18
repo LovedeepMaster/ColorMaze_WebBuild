@@ -1,9 +1,9 @@
-const cacheName = "LovedeepSinghGame-ColorMaze-0.1.0";
+const cacheName = "LovedeepSinghGame-ColorMaze-0.1.1";
 const contentToCache = [
-    "Build/New folder.loader.js",
-    "Build/New folder.framework.js.unityweb",
-    "Build/New folder.data.unityweb",
-    "Build/New folder.wasm.unityweb",
+    "Build/0.1.1.loader.js",
+    "Build/0.1.1.framework.js.unityweb",
+    "Build/0.1.1.data.unityweb",
+    "Build/0.1.1.wasm.unityweb",
     "TemplateData/style.css"
 
 ];
