@@ -212,6 +212,35 @@
         #unity-progress-bar-empty { width: 90%; }
       }
 
+      /* ===============================
+   Tutorial Overlay
+   =============================== */
+#tutorial-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10003;
+  pointer-events: none;
+}
+
+#tutorial-card {
+  background: rgba(0,0,0,0.65);
+  color: #fff;
+  padding: 18px 26px;
+  border-radius: 12px;
+  font-family: sans-serif;
+  font-size: 14px;
+  text-align: center;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+}
+
+#tutorial-overlay[hidden] {
+  display: none;
+}
+
     </style>
     <!-- --- End custom styles --- -->
   </head>
@@ -241,6 +270,14 @@
           <div id="custom-progress-percent">0%</div>
         </div>
       </div>
+
+      <!-- Tutorial overlay shown after loading -->
+<div id="tutorial-overlay" hidden aria-hidden="true">
+  <div id="tutorial-card">
+    Use the left, right, up, and down arrow keys to move the ball.
+  </div>
+</div>
+
     </div>
 
     <!-- Orientation warning UI (mobile only) -->
@@ -276,6 +313,11 @@
       // Orientation warning element
       var rotateWarning = document.querySelector("#rotate-warning");
       var rotateBlocker = document.querySelector("#rotate-input-blocker");
+
+      // Tutorial overlay
+var tutorialOverlay = document.querySelector("#tutorial-overlay");
+var tutorialTimeout = null;
+var tutorialActive = false;
 
       // Utility variables used by blocker
       var blockerActive = false;
@@ -424,6 +466,26 @@
         _blockerHandlers = [];
       }
 
+      function showTutorialOverlay() {
+  if (tutorialActive) return;
+  tutorialActive = true;
+
+  tutorialOverlay.removeAttribute("hidden");
+  tutorialOverlay.setAttribute("aria-hidden", "false");
+
+  function hideTutorial() {
+    if (!tutorialActive) return;
+    tutorialActive = false;
+    tutorialOverlay.setAttribute("hidden", "");
+    tutorialOverlay.setAttribute("aria-hidden", "true");
+    window.removeEventListener("keydown", hideTutorial, true);
+    clearTimeout(tutorialTimeout);
+  }
+
+  window.addEventListener("keydown", hideTutorial, true);
+  tutorialTimeout = setTimeout(hideTutorial, 5000);
+}
+
       // If device is mobile, append viewport meta (keeps original default behaviour)
       if (isMobile) {
         var meta = document.createElement('meta');
@@ -535,6 +597,9 @@
             // Also re-evaluate orientation after Unity starts, in case orientation changed during load
             if (typeof updateRotateWarning === "function") updateRotateWarning();
           }
+
+          // Show tutorial after loading completes
+setTimeout(showTutorialOverlay, 250);
         }).catch((message) => {
           // If there's an error, keep overlay visible and show the message as an error banner
           customOverlay.removeAttribute("hidden");
